@@ -6,10 +6,10 @@ import LoadingScreen from '../screens/common/LoadingScreen';
 import { RootStackParamList } from '../types';
 
 // Import navigators
-import AuthNavigator from './AuthNavigator';
-import BookingNavigator from './BookingNavigator';
-import ProducerNavigator from './ProducerNavigator';
-import OperatorNavigator from './OperatorNavigator';
+import AuthNavigator from '../navigation/AuthNavigator';
+import BookingNavigator from '../navigation/BookingNavigator';
+import ProducerNavigator from '../navigation/ProducerNavigator';
+import OperatorNavigator from '../navigation/OperatorNavigation';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
