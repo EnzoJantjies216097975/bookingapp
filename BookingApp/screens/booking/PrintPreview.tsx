@@ -1,25 +1,25 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
   ActivityIndicator,
-  Share,
-  Platform
+  TouchableOpacity,
+  Platform,
+  Share
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../../types/index';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { RootStackParamList } from '../../types';
 
-type PrintPreviewNavigationProp = StackNavigationProp
+type PrintPreviewNavigationProp = StackNavigationProp<
   RootStackParamList,
   'PrintPreview'
 >;
 
-type PrintPreviewRouteProp = RouteProp
+type PrintPreviewRouteProp = RouteProp<
   RootStackParamList,
   'PrintPreview'
 >;
@@ -31,76 +31,141 @@ interface PrintPreviewProps {
 
 const PrintPreview: React.FC<PrintPreviewProps> = ({ navigation, route }) => {
   const { html, title } = route.params;
-  const [loading, setLoading] = useState<boolean>(true);
-  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const handleShare = async () => {
     try {
-      // For a proper implementation, you would save the HTML to a file
-      // and share the file, but for simplicity, we're just sharing the title
       await Share.share({
-        message: `TV Broadcasting Schedule: ${title}`,
-        title: title
+        message: Platform.OS === 'ios' ? 'Production Schedule' : html,
+        title: title || 'Production Schedule'
       });
     } catch (error) {
-      console.error('Error sharing schedule:', error);
+      console.error('Error sharing content:', error);
     }
   };
-  
+
   const handlePrint = () => {
-    // In a real app, you would implement actual printing here
-    // This would likely involve a native module or a third-party library
-    // For simplicity, we'll just show a message
-    alert('Printing functionality would be implemented here with a native printing module');
+    // On web, we can use the browser's print functionality
+    if (Platform.OS === 'web') {
+      // @ts-ignore - window is available on web
+      window.print();
+    } else {
+      // For mobile, alert that printing requires sharing first
+      alert('To print, please use the Share button and select a print option from available apps.');
+    }
   };
-  
+
+  // Add appropriate CSS for better mobile display
+  const wrappedHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          padding: 15px;
+          color: #333;
+        }
+        h1, h2, h3 {
+          color: #007bff;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+          margin-bottom: 20px;
+        }
+        th, td {
+          border: 1px solid #ddd;
+          padding: 8px;
+          text-align: left;
+        }
+        th {
+          background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+          background-color: #f9f9f9;
+        }
+        @media print {
+          body {
+            padding: 0;
+          }
+          button {
+            display: none;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      ${html}
+    </body>
+    </html>
+  `;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{title}</Text>
-      </View>
-      
-      <View style={styles.webViewContainer}>
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007bff" />
-            <Text style={styles.loadingText}>Loading preview...</Text>
-          </View>
-        )}
-        
-        <WebView
-          source={{ html }}
-          style={styles.webView}
-          onLoadEnd={() => setLoading(false)}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-        />
-      </View>
-      
-      <View style={styles.actionBar}>
-        <TouchableOpacity
-          style={styles.actionButton}
+        <TouchableOpacity 
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="arrow-back" size={24} color="#555" />
-          <Text style={styles.actionButtonText}>Back</Text>
+          <Icon name="arrow-back" size={24} color="#007bff" />
         </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleShare}
-        >
-          <Icon name="share" size={24} color="#555" />
-          <Text style={styles.actionButtonText}>Share</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.actionButton, styles.printButton]}
-          onPress={handlePrint}
-        >
-          <Icon name="print" size={24} color="white" />
-          <Text style={[styles.actionButtonText, styles.printButtonText]}>Print</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>{title || 'Schedule Preview'}</Text>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleShare}
+          >
+            <Icon name="share" size={24} color="#007bff" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handlePrint}
+          >
+            <Icon name="print" size={24} color="#007bff" />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {error ? (
+        <View style={styles.errorContainer}>
+          <Icon name="error-outline" size={48} color="#dc3545" />
+          <Text style={styles.errorText}>Failed to load preview</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              setError(null);
+              setLoading(true);
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.webViewContainer}>
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007bff" />
+              <Text style={styles.loadingText}>Loading preview...</Text>
+            </View>
+          )}
+          <WebView
+            source={{ html: wrappedHtml }}
+            onLoad={() => setLoading(false)}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              setError(nativeEvent.description || 'Failed to load content');
+              setLoading(false);
+            }}
+            style={[styles.webView, loading && { height: 0 }]}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+          />
+        </View>
+      )}
     </View>
   );
 };
@@ -111,15 +176,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  headerTitle: {
+  backButton: {
+    padding: 4,
+  },
+  title: {
     fontSize: 18,
     fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'center',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+  },
+  actionButton: {
+    padding: 4,
+    marginLeft: 16,
   },
   webViewContainer: {
     flex: 1,
@@ -133,39 +212,40 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    zIndex: 1,
+    backgroundColor: 'white',
   },
   loadingText: {
     marginTop: 12,
+    fontSize: 16,
     color: '#555',
   },
-  actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-  },
-  actionButton: {
-    flexDirection: 'row',
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
+    padding: 20,
   },
-  actionButtonText: {
-    marginLeft: 8,
-    fontWeight: '500',
+  errorText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 12,
     color: '#555',
   },
-  printButton: {
-    backgroundColor: '#007bff',
+  errorMessage: {
+    marginTop: 8,
+    color: '#777',
+    textAlign: 'center',
   },
-  printButtonText: {
+  retryButton: {
+    backgroundColor: '#007bff',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 4,
+    marginTop: 20,
+  },
+  retryButtonText: {
     color: 'white',
+    fontWeight: 'bold',
   },
 });
 

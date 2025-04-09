@@ -6,7 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { firestore, functions } from '../../config/firebase';
@@ -88,7 +89,7 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
         currentProductionId: production.id
       });
       
-      return result.data.available;
+      return (result.data as any).available;
     } catch (error) {
       console.error('Error checking staff availability:', error);
       return false;
