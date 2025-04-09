@@ -19,7 +19,7 @@ import { AuthContext } from '../../contexts/AuthContext';
 import { Production, RootStackParamList, UserRole } from '../../types';
 import ProductionCard from '../../components/common/ProductionCard';
 
-type OperatorScheduleNavigationProp = StackNavigationProp
+type OperatorScheduleNavigationProp = StackNavigationProp<
   RootStackParamList,
   'OperatorSchedule'
 >;

@@ -4,7 +4,9 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFunctions, Functions } from 'firebase/functions';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getMessaging, Messaging, isSupported } from 'firebase/messaging';
-import { getAnalytics } from "firebase/analytics";
+
+
+let analytics: any = null;
 
 
 const firebaseConfig = {
@@ -19,7 +21,6 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 
 // Export Firebase services
 export const auth: Auth = getAuth(app);
@@ -27,19 +28,24 @@ export const firestore: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);
 export const functions: Functions = getFunctions(app);
 
-let messagingInstance: any = null;
+// Conditionally initialize Analytics (only in browser)
+if (typeof window !== 'undefined') {
+  import('firebase/analytics').then(({ getAnalytics }) => {
+    analytics = getAnalytics(app);
+  });
+}
+
+// Conditionally initialize Messaging (only in browser and supported env)
+let messaging: Messaging | null = null;
+
 const initializeMessaging = async () => {
-  try {
-    if (await isSupported()) {
-      messagingInstance = getMessaging(app);
-    }
-  } catch (error) {
-    console.log('Firebase messaging is not supported in this environment');
+  if (typeof window !== 'undefined' && (await isSupported())) {
+    const { getMessaging } = await import('firebase/messaging');
+    messaging = getMessaging(app);
   }
 };
 
 initializeMessaging();
-export const messaging = messagingInstance;
 
+export { messaging };
 export default app;
-

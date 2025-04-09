@@ -17,12 +17,12 @@ import { AuthContext } from '../../contexts/AuthContext';
 import { getProductionById, reportProductionOvertime } from '../../api/productions';
 import { RootStackParamList, Production } from '../../types';
 
-type ReportOvertimeNavigationProp = StackNavigationProp
+type ReportOvertimeNavigationProp = StackNavigationProp<
   RootStackParamList,
   'ReportOvertime'
 >;
 
-type ReportOvertimeRouteProp = RouteProp
+type ReportOvertimeRouteProp = RouteProp<
   RootStackParamList,
   'ReportOvertime'
 >;

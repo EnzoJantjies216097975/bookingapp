@@ -18,7 +18,7 @@ import { AuthContext } from '../../contexts/AuthContext';
 import { Production, RootStackParamList, UserRole } from '../../types';
 import ProductionCard from '../../components/common/ProductionCard';
 
-type OperatorDashboardNavigationProp = StackNavigationProp
+type OperatorDashboardNavigationProp = StackNavigationProp<
   RootStackParamList,
   'OperatorDashboard'
 >;

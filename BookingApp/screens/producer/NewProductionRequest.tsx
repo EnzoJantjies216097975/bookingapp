@@ -20,7 +20,7 @@ import { AuthContext } from '../../contexts/AuthContext';
 import { createProductionRequest } from '../../api/productions';
 import { RootStackParamList, Venue } from '../../types';
 
-type NewProductionRequestNavigationProp = StackNavigationProp
+type NewProductionRequestNavigationProp = StackNavigationProp<
   RootStackParamList,
   'NewProductionRequest'
 >;

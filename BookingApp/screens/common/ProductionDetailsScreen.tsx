@@ -19,12 +19,12 @@ import { getUserNamesByIds } from '../../api/users';
 import { getIssuesByProduction } from '../../api/issues';
 import { Production, RootStackParamList, Issue } from '../../types';
 
-type ProductionDetailsScreenNavigationProp = StackNavigationProp
+type ProductionDetailsScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'ProductionDetails'
 >;
 
-type ProductionDetailsScreenRouteProp = RouteProp
+type ProductionDetailsScreenRouteProp = RouteProp<
   RootStackParamList,
   'ProductionDetails'
 >;

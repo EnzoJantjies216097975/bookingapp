@@ -17,11 +17,11 @@ import { Picker } from '@react-native-picker/picker';
 import { firestore } from '../../config/firebase';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from 'react-native-vector-icons/MaterialIcons'
 import { AuthContext } from '../../contexts/AuthContext';
 import { Production, RootStackParamList, UserRole } from '../../types';
 
-type ProductionHistoryScreenNavigationProp = StackNavigationProp
+type ProductionHistoryScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'ProductionHistory'
 >;

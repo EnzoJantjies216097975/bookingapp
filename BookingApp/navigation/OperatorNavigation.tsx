@@ -4,7 +4,7 @@ import { RootStackParamList } from '../types';
 
 // Import operator screens
 import OperatorDashboard from '../screens/operator/OperatorDashboard';
-import OperatorSchedule from '../screens/operator/OPeratorSchedule';
+import OperatorSchedule from '../screens/operator/OperatorSchedule';
 import IssueReporting from '../screens/operator/IssueReporting';
 import ProductionDetailsScreen from '../screens/common/ProductionDetailsScreen';
 import ProductionHistoryScreen from '../screens/history/ProductionHistoryScreen';

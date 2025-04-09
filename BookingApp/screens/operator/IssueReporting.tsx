@@ -19,12 +19,12 @@ import { createIssue } from '../../api/issues';
 import { IssuePriority, Production, RootStackParamList } from '../../types';
 import { format } from 'date-fns';
 
-type IssueReportingNavigationProp = StackNavigationProp
+type IssueReportingNavigationProp = StackNavigationProp<
   RootStackParamList,
   'IssueReporting'
 >;
 
-type IssueReportingRouteProp = RouteProp
+type IssueReportingRouteProp = RouteProp<
   RootStackParamList,
   'IssueReporting'
 >;

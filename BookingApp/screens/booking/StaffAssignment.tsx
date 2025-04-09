@@ -17,12 +17,12 @@ import { RootStackParamList } from '../../types';
 import StaffSelector from '../../components/booking/StaffSelector';
 import { updateProductionStaffing } from '../../api/productions';
 
-type StaffAssignmentNavigationProp = StackNavigationProp
+type StaffAssignmentNavigationProp = StackNavigationProp<
   RootStackParamList,
   'StaffAssignment'
 >;
 
-type StaffAssignmentRouteProp = RouteProp
+type StaffAssignmentRouteProp = RouteProp<
   RootStackParamList,
   'StaffAssignment'
 >;

@@ -18,7 +18,7 @@ import { AuthContext } from '../../contexts/AuthContext';
 import { Production, RootStackParamList } from '../../types';
 import ProductionCard from '../../components/common/ProductionCard';
 
-type ProducerDashboardNavigationProp = StackNavigationProp
+type ProducerDashboardNavigationProp = StackNavigationProp<
   RootStackParamList,
   'ProducerDashboard'
 >;

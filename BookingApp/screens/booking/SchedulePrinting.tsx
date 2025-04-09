@@ -18,7 +18,7 @@ import { httpsCallable } from 'firebase/functions';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Production, RootStackParamList } from '../../types';
 
-type SchedulePrintingNavigationProp = StackNavigationProp
+type SchedulePrintingNavigationProp = StackNavigationProp<
   RootStackParamList,
   'SchedulePrinting'
 >;
