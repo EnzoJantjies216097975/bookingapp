@@ -1,17 +1,54 @@
 import React from 'react';
-import { AuthProvider } from '../contexts/AuthContext';
-import { NotificationProvider } from '../contexts/NotificationContext';
-import AppNavigator from '../navigation/AppNavigator';
+import { View, Text, StyleSheet } from 'react-native';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 
-export default function App() {
+export default function HomeScreen() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <AppNavigator />
-      </NotificationProvider>
-    </AuthProvider>
+    <ThemedView style={styles.container}>
+      <View style={styles.titleContainer}>
+        <ThemedText type="title">Welcome!</ThemedText>
+      </View>
+      
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Quick Start</ThemedText>
+        <ThemedText>
+          This is your Production Booking App. Navigate through the tabs to access 
+          different features based on your role.
+        </ThemedText>
+      </ThemedView>
+      
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Dashboard</ThemedText>
+        <ThemedText>
+          Check your dashboard to view upcoming productions, pending requests, 
+          and manage your schedule.
+        </ThemedText>
+      </ThemedView>
+    </ThemedView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  titleContainer: {
+    marginBottom: 20,
+  },
+  stepContainer: {
+    marginBottom: 20,
+    padding: 15,
+    borderRadius: 8,
+    backgroundColor: 'white',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+  },
+});
 
 // import { Image, StyleSheet, Platform } from 'react-native';
 
