@@ -60,6 +60,38 @@ export interface User {
     electrician?: string;
   }
   
+
+  // User-related types
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  secondaryEmail?: string | null;
+  role: UserRole;
+  roles: UserRole[]; // Array of all assigned roles
+  department: Department;
+  deviceToken?: string;
+  phoneNumber: string;
+  secondaryPhone?: string | null;
+  profilePicture?: string;
+  profileComplete: boolean; // To track if profile setup is complete
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export type Department = 'Current Affairs' | 'News Desk' | 'Content Hub' | 'TV Operations';
+
+// Announcement-related types
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  targetGroup: 'all' | 'producers' | 'operators';
+  createdById: string;
+  createdAt: Date;
+  isPinned: boolean;
+}
+
   // Notification-related types
   export interface Notification {
     id: string;

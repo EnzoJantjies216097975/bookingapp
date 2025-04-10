@@ -1,302 +1,376 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
+  ScrollView,
   TouchableOpacity,
-  Alert,
+  FlatList,
   ActivityIndicator,
+  Alert,
   RefreshControl
 } from 'react-native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { firestore, functions } from '../../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { format } from 'date-fns';
+import { useNavigation } from '@react-navigation/native';
+import { collection, query, where, orderBy, getDocs, Timestamp, limit, onSnapshot } from 'firebase/firestore';
+import { firestore } from '../../config/firebase';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { format, addDays } from 'date-fns';
 import { AuthContext } from '../../contexts/AuthContext';
-import { Production, RootStackParamList } from '../../types';
+import { Production, User } from '../../types';
 import ProductionCard from '../../components/common/ProductionCard';
+import Card from '../../components/common/Card';
+import StatusBadge from '../../components/common/StatusBadge';
 
-type BookingDashboardNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'BookingDashboard'
->;
-
-interface BookingDashboardProps {
-  navigation: BookingDashboardNavigationProp;
-}
-
-const BookingDashboard: React.FC<BookingDashboardProps> = ({ navigation }) => {
+const BookingOfficerDashboard: React.FC = () => {
+  const navigation = useNavigation();
   const { userProfile } = useContext(AuthContext);
+  
   const [pendingProductions, setPendingProductions] = useState<Production[]>([]);
-  const [confirmedProductions, setConfirmedProductions] = useState<Production[]>([]);
+  const [todayProductions, setTodayProductions] = useState<Production[]>([]);
+  const [upcomingProductions, setUpcomingProductions] = useState<Production[]>([]);
+  const [staffCounts, setStaffCounts] = useState({
+    camera: 0,
+    sound: 0,
+    lighting: 0,
+    other: 0,
+    total: 0
+  });
+  
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-
+  
+  // Fetch dashboard data
   useEffect(() => {
-    const now = new Date();
+    fetchDashboardData();
     
-    // Listen for pending production requests
-    const unsubscribePending = onSnapshot(
-      query(
-        collection(firestore, 'productions'),
-        where('status', '==', 'requested'),
-        orderBy('date'),
-        orderBy('startTime')
-      ),
-      (snapshot) => {
-        const productions: Production[] = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          date: doc.data().date.toDate(),
-          startTime: doc.data().startTime.toDate(),
-          endTime: doc.data().endTime.toDate(),
-          callTime: doc.data().callTime.toDate(),
-          createdAt: doc.data().createdAt?.toDate() || new Date()
-        } as Production));
-        
-        setPendingProductions(productions);
-      }
+    // Set up realtime listener for pending productions
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const pendingQuery = query(
+      collection(firestore, 'productions'),
+      where('status', '==', 'requested'),
+      orderBy('date'),
+      orderBy('startTime')
     );
     
-    // Listen for upcoming confirmed productions
-    const unsubscribeConfirmed = onSnapshot(
-      query(
-        collection(firestore, 'productions'),
-        where('status', '==', 'confirmed'),
-        where('date', '>=', Timestamp.fromDate(now)),
-        orderBy('date'),
-        orderBy('startTime'),
-        where('processedById', '==', userProfile?.id)
-      ),
-      (snapshot) => {
-        const productions: Production[] = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          date: doc.data().date.toDate(),
-          startTime: doc.data().startTime.toDate(),
-          endTime: doc.data().endTime.toDate(),
-          callTime: doc.data().callTime.toDate(),
-          createdAt: doc.data().createdAt?.toDate() || new Date()
-        } as Production));
-        
-        setConfirmedProductions(productions);
-        setLoading(false);
-        setRefreshing(false);
-      }
-    );
+    const unsubscribePending = onSnapshot(pendingQuery, (snapshot) => {
+      const productions = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date.toDate(),
+        startTime: doc.data().startTime.toDate(),
+        endTime: doc.data().endTime.toDate(),
+        callTime: doc.data().callTime.toDate(),
+        createdAt: doc.data().createdAt?.toDate() || new Date()
+      } as Production));
+      
+      setPendingProductions(productions);
+    });
     
     return () => {
       unsubscribePending();
-      unsubscribeConfirmed();
     };
-  }, [userProfile]);
-
-  const handleAssignStaff = (production: Production) => {
-    navigation.navigate('StaffAssignment', { production });
-  };
-
-  const handlePrintOptions = (production: Production) => {
-    Alert.alert(
-      'Print Options',
-      'Choose a print format',
-      [
-        { 
-          text: 'Print This Production', 
-          onPress: () => generatePDF('single', production.id) 
-        },
-        { 
-          text: 'Print Daily Schedule', 
-          onPress: () => generatePDF('daily', null, production.date) 
-        },
-        { 
-          text: 'Print Weekly Schedule', 
-          onPress: () => {
-            const startOfWeek = new Date(production.date);
-            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-            generatePDF('weekly', null, null, startOfWeek);
-          } 
-        },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
-  };
-
-  const generatePDF = async (
-    type: 'single' | 'daily' | 'weekly', 
-    productionId?: string, 
-    date?: Date, 
-    startOfWeek?: Date
-  ) => {
+  }, []);
+  
+  const fetchDashboardData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const generateSchedulePDF = httpsCallable(functions, 'generateSchedulePDF');
-      const result = await generateSchedulePDF({
-        type,
-        productionId,
-        date: date ? date.toISOString() : null,
-        startOfWeek: startOfWeek ? startOfWeek.toISOString() : null
+      // Get today's date at midnight
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      
+      // Fetch today's productions
+      const todayQuery = query(
+        collection(firestore, 'productions'),
+        where('date', '>=', Timestamp.fromDate(today)),
+        where('date', '<', Timestamp.fromDate(tomorrow)),
+        where('status', '==', 'confirmed'),
+        orderBy('date'),
+        orderBy('startTime')
+      );
+      
+      const todaySnapshot = await getDocs(todayQuery);
+      const todayData = todaySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date.toDate(),
+        startTime: doc.data().startTime.toDate(),
+        endTime: doc.data().endTime.toDate(),
+        callTime: doc.data().callTime.toDate(),
+        createdAt: doc.data().createdAt?.toDate() || new Date()
+      } as Production));
+      
+      setTodayProductions(todayData);
+      
+      // Fetch upcoming productions (next 7 days, excluding today)
+      const upcomingQuery = query(
+        collection(firestore, 'productions'),
+        where('date', '>', Timestamp.fromDate(tomorrow)),
+        where('date', '<', Timestamp.fromDate(nextWeek)),
+        where('status', '==', 'confirmed'),
+        orderBy('date'),
+        orderBy('startTime'),
+        limit(5)
+      );
+      
+      const upcomingSnapshot = await getDocs(upcomingQuery);
+      const upcomingData = upcomingSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date.toDate(),
+        startTime: doc.data().startTime.toDate(),
+        endTime: doc.data().endTime.toDate(),
+        callTime: doc.data().callTime.toDate(),
+        createdAt: doc.data().createdAt?.toDate() || new Date()
+      } as Production));
+      
+      setUpcomingProductions(upcomingData);
+      
+      // Get staff counts by role
+      const staffQuery = query(collection(firestore, 'users'));
+      const staffSnapshot = await getDocs(staffQuery);
+      
+      let cameraCount = 0;
+      let soundCount = 0;
+      let lightingCount = 0;
+      let otherCount = 0;
+      
+      staffSnapshot.docs.forEach(doc => {
+        const userData = doc.data() as User;
+        
+        if (userData.role === 'camera_operator') {
+          cameraCount++;
+        } else if (userData.role === 'sound_operator') {
+          soundCount++;
+        } else if (userData.role === 'lighting_operator') {
+          lightingCount++;
+        } else if (['evs_operator', 'director', 'stream_operator', 'technician', 'electrician'].includes(userData.role)) {
+          otherCount++;
+        }
       });
       
-      if (result.data.format === 'html') {
-        navigation.navigate('PrintPreview', { 
-          html: result.data.content,
-          title: `${type.charAt(0).toUpperCase() + type.slice(1)} Schedule`
-        });
-      }
+      setStaffCounts({
+        camera: cameraCount,
+        sound: soundCount,
+        lighting: lightingCount,
+        other: otherCount,
+        total: staffSnapshot.size
+      });
+      
     } catch (error) {
-      Alert.alert('Error', 'Failed to generate schedule');
+      console.error('Error fetching dashboard data:', error);
+      Alert.alert('Error', 'Failed to load dashboard data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
-
-  const onRefresh = () => {
+  
+  const handleRefresh = () => {
     setRefreshing(true);
-    // No need to do anything here as the onSnapshot listeners will update the data
-    // This just provides visual feedback to the user
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    fetchDashboardData();
   };
-
-  return (
-    <View style={styles.container}>
-      {loading && !refreshing ? (
-        <ActivityIndicator size="large" color="#007bff" style={styles.loader} />
-      ) : (
-        <FlatList
-          data={[
-            { title: 'Pending Requests', data: pendingProductions, isPending: true },
-            { title: 'Upcoming Confirmed Productions', data: confirmedProductions, isPending: false }
-          ]}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <View>
-              <Text style={styles.sectionTitle}>{item.title}</Text>
-              {item.data.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  {item.isPending 
-                    ? 'No pending production requests' 
-                    : 'No upcoming confirmed productions'}
-                </Text>
-              ) : (
-                <FlatList
-                  data={item.data}
-                  keyExtractor={production => production.id}
-                  renderItem={({ item: production }) => (
-                    <ProductionCard
-                      production={production}
-                      onPress={() => navigation.navigate('ProductionDetails', { productionId: production.id })}
-                      rightComponent={
-                        item.isPending ? (
-                          <TouchableOpacity
-                            style={styles.assignButton}
-                            onPress={() => handleAssignStaff(production)}
-                          >
-                            <Text style={styles.assignButtonText}>Assign Staff</Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <TouchableOpacity
-                            style={styles.printButton}
-                            onPress={() => handlePrintOptions(production)}
-                          >
-                            <Icon name="print" size={20} color="#fff" />
-                          </TouchableOpacity>
-                        )
-                      }
-                    />
-                  )}
-                  style={styles.productionList}
-                />
-              )}
-            </View>
-          )}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-      )}
-
-      <View style={styles.fabContainer}>
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: '#28a745' }]}
-          onPress={() => navigation.navigate('SchedulePrinting')}
-        >
-          <Icon name="print" size={24} color="#fff" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: '#17a2b8', marginTop: 12 }]}
-          onPress={() => navigation.navigate('ProductionHistory')}
-        >
-          <Icon name="history" size={24} color="#fff" />
-        </TouchableOpacity>
+  
+  const renderProductionItem = ({ item }: { item: Production }) => (
+    <ProductionCard
+      production={item}
+      onPress={() => navigation.navigate('ProductionDetails' as never, { productionId: item.id } as never)}
+    />
+  );
+  
+  const renderSectionHeader = (title: string, count: number) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.countBadge}>
+        <Text style={styles.countText}>{count}</Text>
       </View>
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  loader: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  productionList: {
-    paddingHorizontal: 16,
-  },
-  assignButton: {
-    backgroundColor: '#007bff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  assignButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  printButton: {
-    backgroundColor: '#28a745',
-    padding: 8,
-    borderRadius: 4,
-  },
-  emptyText: {
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginVertical: 20,
-    color: '#666',
-  },
-  fabContainer: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-  },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-});
-
-export default BookingDashboard;
+  
+  const navigateToCalendar = () => {
+    navigation.navigate('ProductionCalendar' as never);
+  };
+  
+  const navigateToAnnouncements = () => {
+    navigation.navigate('AnnouncementDashboard' as never);
+  };
+  
+  return (
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
+    >
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcomeText}>Welcome,</Text>
+          <Text style={styles.nameText}>{userProfile?.name || 'Booking Officer'}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.calendarButton}
+          onPress={navigateToCalendar}
+        >
+          <Icon name="calendar-month" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
+      
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007bff" />
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      ) : (
+        <>
+          {/* Stats Cards */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statsRow}>
+              <TouchableOpacity 
+                style={[styles.statCard, { backgroundColor: '#007bff' }]}
+                onPress={() => navigation.navigate('StaffList' as never)}
+              >
+                <Icon name="people" size={24} color="#fff" />
+                <Text style={styles.statValue}>{staffCounts.total}</Text>
+                <Text style={styles.statLabel}>Total Staff</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.statCard, { backgroundColor: '#28a745' }]}
+                onPress={() => navigation.navigate('ProductionList' as never, { status: 'confirmed' } as never)}
+              >
+                <Icon name="check-circle" size={24} color="#fff" />
+                <Text style={styles.statValue}>{upcomingProductions.length}</Text>
+                <Text style={styles.statLabel}>Upcoming</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.statsRow}>
+              <TouchableOpacity 
+                style={[styles.statCard, { backgroundColor: '#ffc107' }]}
+                onPress={() => navigation.navigate('ProductionList' as never, { status: 'requested' } as never)}
+              >
+                <Icon name="pending" size={24} color="#fff" />
+                <Text style={styles.statValue}>{pendingProductions.length}</Text>
+                <Text style={styles.statLabel}>Pending</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.statCard, { backgroundColor: '#17a2b8' }]}
+                onPress={() => navigation.navigate('ProductionList' as never, { status: 'today' } as never)}
+              >
+                <Icon name="today" size={24} color="#fff" />
+                <Text style={styles.statValue}>{todayProductions.length}</Text>
+                <Text style={styles.statLabel}>Today</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Quick Actions */}
+          <View style={styles.quickActionsContainer}>
+            <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity 
+                style={styles.quickActionButton}
+                onPress={() => navigation.navigate('StaffAssignment' as never)}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Icon name="group-add" size={24} color="#007bff" />
+                </View>
+                <Text style={styles.quickActionText}>Assign Staff</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.quickActionButton}
+                onPress={() => navigation.navigate('SchedulePrinting' as never)}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Icon name="print" size={24} color="#28a745" />
+                </View>
+                <Text style={styles.quickActionText}>Print Schedule</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.quickActionButton}
+                onPress={navigateToAnnouncements}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Icon name="campaign" size={24} color="#ffc107" />
+                </View>
+                <Text style={styles.quickActionText}>Announcement</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.quickActionButton}
+                onPress={() => navigation.navigate('ProductionAnalytics' as never)}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Icon name="analytics" size={24} color="#17a2b8" />
+                </View>
+                <Text style={styles.quickActionText}>Analytics</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Staff Availability */}
+          <Card title="Staff Availability" style={styles.staffCard}>
+            <View style={styles.staffRow}>
+              <View style={styles.staffTypeContainer}>
+                <Icon name="videocam" size={20} color="#007bff" />
+                <Text style={styles.staffTypeText}>Camera</Text>
+              </View>
+              <Text style={styles.staffCount}>{staffCounts.camera}</Text>
+            </View>
+            
+            <View style={styles.staffRow}>
+              <View style={styles.staffTypeContainer}>
+                <Icon name="mic" size={20} color="#28a745" />
+                <Text style={styles.staffTypeText}>Sound</Text>
+              </View>
+              <Text style={styles.staffCount}>{staffCounts.sound}</Text>
+            </View>
+            
+            <View style={styles.staffRow}>
+              <View style={styles.staffTypeContainer}>
+                <Icon name="wb-sunny" size={20} color="#ffc107" />
+                <Text style={styles.staffTypeText}>Lighting</Text>
+              </View>
+              <Text style={styles.staffCount}>{staffCounts.lighting}</Text>
+            </View>
+            
+            <View style={styles.staffRow}>
+              <View style={styles.staffTypeContainer}>
+                <Icon name="category" size={20} color="#17a2b8" />
+                <Text style={styles.staffTypeText}>Other</Text>
+              </View>
+              <Text style={styles.staffCount}>{staffCounts.other}</Text>
+            </View>
+          </Card>
+          
+          {/* Pending Requests */}
+          {pendingProductions.length > 0 && (
+            <View style={styles.section}>
+              {renderSectionHeader('Pending Requests', pendingProductions.length)}
+              
+              <FlatList
+                data={pendingProductions.slice(0, 3)}
+                renderItem={renderProductionItem}
+                keyExtractor={item => item.id}
+                style={styles.productionList}
+                scrollEnabled={false}
+              />
+              
+              {pendingProductions.length > 3 && (
+                <TouchableOpacity 
+                  style={styles.viewAllButton}
+                  onPress={() => navigation.navigate('ProductionList' as never, { status: 'requested' } as never)}
+                >
+                  <Text style={styles.viewAllText}>View All ({pendingProductions.length})</Text>
+                  <Icon name="arrow-forward" size={16} color="#007bff" />
+                </TouchableOpacity>
